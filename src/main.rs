@@ -99,13 +99,16 @@ fn cursor_move<B: tui::backend::Backend>(terminal: &mut Terminal<B>, line_length
     let mut x_pos = terminal.get_cursor().unwrap().0;
     let mut y_pos = terminal.get_cursor().unwrap().1;
     if y_pos <= 2 && direction == 'n' && (*span_start as usize) > 0{
+        if x_pos > line_lengths[(y_pos) as usize + *span_start] + 1{
+            x_pos = line_lengths[(y_pos) as usize + *span_start] + 1;
+        }
         *span_start -= 1;
         return (true, x_pos, y_pos);
     }
     if y_pos <= (line_lengths.len() - *span_start) as u16{
         if y_pos >= render_height as u16 && (line_lengths.len() - (*span_start as usize)) > render_height && direction == 's'{
-            if x_pos >= line_lengths[(y_pos - 1) as usize + *span_start] + 1{
-                x_pos = line_lengths[(y_pos - 1) as usize + *span_start] + 1;
+            if x_pos > line_lengths[(y_pos) as usize + *span_start] + 1{
+                x_pos = line_lengths[(y_pos) as usize + *span_start] + 1;
             }
             *span_start += 1;
             return (true, x_pos, y_pos);
@@ -120,11 +123,11 @@ fn cursor_move<B: tui::backend::Backend>(terminal: &mut Terminal<B>, line_length
         'w' => x_pos -= 1,
         _ => (),
     }
-    if y_pos > (line_lengths.len()) as u16{
-        y_pos = (line_lengths.len()) as u16;
+    if y_pos > (line_lengths.len() - *span_start) as u16{
+        y_pos = (line_lengths.len() - *span_start) as u16;
     }
-    if x_pos > line_lengths[(y_pos - 1) as usize] + 1{
-        x_pos = line_lengths[(y_pos - 1) as usize] + 1;
+    if x_pos > line_lengths[(y_pos - 1) as usize + *span_start] + 1{
+        x_pos = line_lengths[(y_pos - 1) as usize + *span_start] + 1;
     }
     terminal.set_cursor(x_pos, y_pos);
     return (false, x_pos, y_pos);
@@ -146,7 +149,7 @@ fn render<B: tui::backend::Backend>(terminal: &mut Terminal<B>, display_text: Ve
         let paragraph = Paragraph::new(display_text.clone())
             .style(Style::default())
             .alignment(Alignment::Left)
-            .wrap(Wrap {trim: true });
+            .wrap(Wrap {trim: false });
         main.render_widget(block, size);
         size.x += 1;
         size.y += 1;
