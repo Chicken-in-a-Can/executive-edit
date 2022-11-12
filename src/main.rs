@@ -98,7 +98,7 @@ fn main() -> Result<(), io::Error> {
 fn cursor_move<B: tui::backend::Backend>(terminal: &mut Terminal<B>, line_lengths: Vec<u16>, mut direction: char, render_height: usize, span_start: &mut usize) -> (bool, u16, u16){
     let mut x_pos = terminal.get_cursor().unwrap().0;
     let mut y_pos = terminal.get_cursor().unwrap().1;
-    if y_pos <= 2 && direction == 'n' && (*span_start as usize) > 0{
+    if y_pos <= 3 && direction == 'n' && (*span_start as usize) > 0{
         if x_pos > line_lengths[(y_pos) as usize + *span_start] + 1{
             x_pos = line_lengths[(y_pos) as usize + *span_start] + 1;
         }
