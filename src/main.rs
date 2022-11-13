@@ -62,7 +62,7 @@ fn main() -> Result<(), io::Error> {
 
     // Render terminal
     render_height = render(&mut terminal, display_text.clone(), file_path_span.clone());
-    terminal.set_cursor(1, (render_height.clone() as u16) - 1);
+    terminal.set_cursor(1, 1);
     terminal.show_cursor();
 
     // Main loop
