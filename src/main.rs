@@ -144,7 +144,7 @@ fn cursor_end<B: tui::backend::Backend>(terminal: &mut Terminal<B>, span_start: 
         return(1, (render_height) as u16);
     }
     else{
-        return (x_pos, y_pos);
+        return (x_pos, line_lengths.len() as u16);
     }
 }
 // Moves cursor, scrolls when necessary
