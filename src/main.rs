@@ -40,13 +40,18 @@ fn main() -> Result<(), io::Error> {
     let file_path_span = Span::raw(String::from(file_path));
     let file_string = fs::read_to_string(file_path).expect("File not able to be read");
     // Read file into vector
-    let mut file_vector: Vec<&str> = file_string.lines().collect();
-    file_vector.push("");
+    let mut file_vector_str: Vec<&str> = file_string.lines().collect();
+    file_vector_str.push("");
+    let mut file_vector = Vec::new();
+    for i in 0..file_vector_str.len(){
+        file_vector.push(file_vector_str[i].clone().to_string());
+    }
     let mut line_lengths: Vec<u16> = Vec::new();
     // Create new vector with line lengths
     for i in 0..file_vector.len(){
         line_lengths.push(file_vector[i as usize].len() as u16);
     }
+    let mut changes_vec: Vec<String> = Vec::new();
 
     // set up terminal
     enable_raw_mode()?;
@@ -64,6 +69,8 @@ fn main() -> Result<(), io::Error> {
     render_height = render(&mut terminal, display_text.clone(), file_path_span.clone());
     terminal.set_cursor(1, 1);
     terminal.show_cursor();
+    let mut char_input = ' ';
+    let mut char_changed = false;
 
     // Main loop
     loop{
@@ -107,16 +114,24 @@ fn main() -> Result<(), io::Error> {
                 modifiers: KeyModifiers::NONE,
             ..}
             ) => span_changed = cursor_end(&mut terminal, &mut span_start, line_lengths.clone(), render_height.clone()),
+            Event::Key(KeyEvent{code: KeyCode::Char(event), ..}) => copy_char(&mut char_input, event, &mut char_changed),
             // if nothing, do nothing
             _ => (),
         }
+        let x_pos = span_changed.0;
+        let y_pos = span_changed.1;
         // Re-set span vector && re-render
+        if char_changed{
+            let str_input: String = (file_vector[y_pos as usize].clone() + &char_input.to_string().clone());
+            file_vector[y_pos as usize] = str_input;
+        }
         let display_text = str_vec_to_span(file_vector.clone(), span_start.clone(), render_height.clone());
         render(&mut terminal, display_text.clone(), file_path_span.clone());
-        let mut x_pos = span_changed.0;
-        let mut y_pos = span_changed.1;
+        let x_pos = span_changed.0;
+        let y_pos = span_changed.1;
         terminal.set_cursor(x_pos, y_pos);
         terminal.show_cursor();
+        char_changed = false;
     }
 
     // restore Unix/Linux terminal
@@ -129,6 +144,10 @@ fn main() -> Result<(), io::Error> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+fn copy_char(char_input: &mut char, char_to_copy: char, char_changed: &mut bool){
+    *char_input = char_to_copy;
+    *char_changed = true;
 }
 // Sets cursor to top of file
 fn cursor_home(span_start: &mut usize) -> (u16, u16){
@@ -194,19 +213,19 @@ fn cursor_move<B: tui::backend::Backend>(terminal: &mut Terminal<B>, line_length
     return (x_pos, y_pos);
 }
 // Converts &str vector to span vector
-fn str_vec_to_span(file_vector: Vec<&str>, start_y: usize, render_height: usize) -> Vec<Spans<'_>>{
+fn str_vec_to_span(file_vector: Vec<String>, start_y: usize, render_height: usize) -> Vec<Spans<'static>>{
     // Add first element
-    let mut display_text = vec![Spans::from(file_vector[start_y])];
+    let mut display_text = vec![Spans::from(file_vector[start_y].clone())];
     // Do initial conversion as well as later when under render_height number of lines after start
     if file_vector.len() <= start_y + 1 + render_height || render_height == 0{
         for i in (start_y + 1)..file_vector.len(){
-            display_text.push(Spans::from(file_vector[i as usize]));
+            display_text.push(Spans::from(file_vector[i as usize].clone()));
         }
     }
     // Only put lines in vector if visible in render
     else{
         for i in (start_y + 1)..(start_y + 2 + render_height){
-            display_text.push(Spans::from(file_vector[i as usize]));
+            display_text.push(Spans::from(file_vector[i as usize].clone()));
         }
     }
     return display_text
