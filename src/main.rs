@@ -8,7 +8,7 @@
  * because I got annoyed at nano, and for fun
 */
 // Standard imports for various tasks
-use std::{io, io::Write, thread, time::Duration, process::exit, fs, env};
+use std::{io, io::Write, thread, time::Duration, process::exit, path, fs, env};
 // Rust tui and crossterm imports for rendering
 use tui::{
     backend::CrosstermBackend,
@@ -37,7 +37,10 @@ fn main() -> Result<(), io::Error> {
 
     // Get file path and read in file
     let file_path = &args[1];
-    let file_path_span = Span::raw(String::from(file_path));
+    if !path::Path::new(file_path).exists(){
+        fs::File::create(file_path);
+    }
+    let mut file_path_span = Span::raw(String::from(file_path));
     let file_string = fs::read_to_string(file_path).expect("File not able to be read");
     // Read file into vector
     let mut file_vector_str: Vec<&str> = file_string.lines().collect();
@@ -60,8 +63,9 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let mut span_start: usize = 0;
-    let mut span_changed = (0 as u16, 0 as u16);
+    let mut span_changed = (1 as u16, 1 as u16);
     let mut render_height: usize = 0;
+    let mut has_saved: bool = true;
     // Create span vector from our file array
     let display_text = str_vec_to_span(file_vector.clone(), span_start.clone(), render_height.clone());
 
@@ -71,6 +75,9 @@ fn main() -> Result<(), io::Error> {
     terminal.show_cursor();
     let mut char_input = ' ';
     let mut char_changed = false;
+    let mut backspaced = false;
+    let mut deleted = false;
+    let mut entered = false;
 
     // Main loop
     loop{
@@ -82,6 +89,11 @@ fn main() -> Result<(), io::Error> {
                 modifiers: KeyModifiers::CONTROL,
                 ..}
             ) => break,
+            Event::Key(KeyEvent{
+                code: KeyCode::Char('s'),
+                modifiers: KeyModifiers::CONTROL,
+                ..}
+            ) => bool_toggle(&mut has_saved),
             // Move on arrow key presses
             Event::Key(KeyEvent {
                 code: KeyCode::Up,
@@ -114,6 +126,21 @@ fn main() -> Result<(), io::Error> {
                 modifiers: KeyModifiers::NONE,
             ..}
             ) => span_changed = cursor_end(&mut terminal, &mut span_start, line_lengths.clone(), render_height.clone()),
+            Event::Key(KeyEvent {
+                code: KeyCode::Backspace,
+                modifiers: KeyModifiers::NONE,
+                ..}
+            ) => bool_toggle(&mut backspaced),
+            Event::Key(KeyEvent {
+                code: KeyCode::Delete,
+                modifiers: KeyModifiers::NONE,
+                ..}
+            ) => bool_toggle(&mut deleted),
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                modifiers: KeyModifiers::NONE,
+                ..}
+            ) => bool_toggle(&mut entered),
             Event::Key(KeyEvent{code: KeyCode::Char(event), ..}) => copy_char(&mut char_input, event, &mut char_changed),
             // if nothing, do nothing
             _ => (),
@@ -121,17 +148,62 @@ fn main() -> Result<(), io::Error> {
         let x_pos = span_changed.0;
         let y_pos = span_changed.1;
         // Re-set span vector && re-render
+        if backspaced && span_changed.0 > 1{
+            file_vector[(y_pos as usize) + span_start - 1].remove(x_pos as usize - 2);
+            line_lengths[(y_pos as usize) + span_start - 1] -= 1;
+            span_changed.0 = span_changed.0 - 1;
+        }
+        else if backspaced && span_changed.0 == 1 && span_changed.1 > 1{
+            span_changed.0 = line_lengths[y_pos as usize + span_start - 2] + 1;
+            span_changed.1 -= 1;
+            file_vector[y_pos as usize + span_start - 2] = [file_vector[y_pos as usize + span_start - 2].clone(), file_vector[y_pos as usize + span_start - 1].clone()].join("");
+            file_vector.remove(y_pos as usize + span_start - 1);
+            line_lengths.remove(y_pos as usize + span_start - 1);
+            line_lengths[y_pos as usize + span_start - 2] = file_vector[y_pos as usize + span_start - 2].len() as u16;
+        }
+        if deleted && span_changed.0 < line_lengths[span_changed.1 as usize - 1]{
+            file_vector[(y_pos as usize) + span_start - 1].remove(x_pos as usize - 1);
+            line_lengths[(y_pos as usize) + span_start - 1] -= 1;
+        }
+        else if deleted && span_changed.0 >= line_lengths[span_changed.1 as usize - 1] && span_changed.1 < line_lengths.len() as u16{
+            file_vector[y_pos as usize + span_start - 1] = [file_vector[y_pos as usize + span_start - 1].clone(), file_vector[y_pos as usize + span_start].clone()].join("");
+            file_vector.remove(y_pos as usize + span_start);
+            line_lengths.remove(y_pos as usize + span_start);
+            line_lengths[y_pos as usize + span_start - 1] = file_vector[y_pos as usize + span_start - 1].len() as u16;
+        }
+        if entered{
+            file_vector.insert(y_pos as usize + span_start, "".to_owned());
+            file_vector[y_pos as usize + span_start] = file_vector[y_pos as usize + span_start - 1][(x_pos as usize - 1)..].to_owned();
+            file_vector[y_pos as usize + span_start - 1] = file_vector[y_pos as usize + span_start - 1][..(x_pos as usize - 1)].to_owned();
+            line_lengths.insert(y_pos as usize + span_start, file_vector[y_pos as usize + span_start].len() as u16);
+            span_changed.0 = 1;
+            span_changed.1 = y_pos + 1;
+        }
         if char_changed{
-            let str_input: String = (file_vector[y_pos as usize].clone() + &char_input.to_string().clone());
-            file_vector[y_pos as usize] = str_input;
+            file_vector[(y_pos as usize) + span_start - 1].insert((x_pos as usize - 1), char_input);
+            line_lengths[(y_pos as usize) + span_start - 1] += 1;
+            span_changed.0 = span_changed.0 + 1;
+        }
+        if char_changed || backspaced || entered || deleted{
+            has_saved = false;
         }
         let display_text = str_vec_to_span(file_vector.clone(), span_start.clone(), render_height.clone());
+        if has_saved{
+            file_path_span = Span::raw(String::from(file_path));
+            save_file(file_vector.clone(), file_path);
+        }
+        else{
+            file_path_span = Span::raw(format!("{} *", file_path));
+        }
         render(&mut terminal, display_text.clone(), file_path_span.clone());
-        let x_pos = span_changed.0;
-        let y_pos = span_changed.1;
+        let mut x_pos = span_changed.0;
+        let mut y_pos = span_changed.1;
         terminal.set_cursor(x_pos, y_pos);
         terminal.show_cursor();
         char_changed = false;
+        backspaced = false;
+        entered = false;
+        deleted = false;
     }
 
     // restore Unix/Linux terminal
@@ -144,6 +216,11 @@ fn main() -> Result<(), io::Error> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+fn bool_toggle(bool_input: &mut bool){
+    if !*bool_input{
+        *bool_input = !*bool_input;
+    }
 }
 fn copy_char(char_input: &mut char, char_to_copy: char, char_changed: &mut bool){
     *char_input = char_to_copy;
@@ -256,4 +333,14 @@ fn render<B: tui::backend::Backend>(terminal: &mut Terminal<B>, display_text: Ve
     });
     // return height of render
     return render_height;
+}
+fn save_file(mut file_vector: Vec<String>, file_path: &str) -> std::io::Result<()>{
+    let mut writer = fs::File::create(file_path)?;
+    if file_vector[file_vector.len() - 1] == ""{
+        file_vector.remove(file_vector.len() - 1);
+    }
+    for i in 0..file_vector.len(){
+        writer.write_all(format!("{}\n", file_vector[i]).as_str().as_bytes())?;
+    }
+    Ok(())
 }
