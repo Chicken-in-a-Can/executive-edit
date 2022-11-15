@@ -37,6 +37,7 @@ fn main() -> Result<(), io::Error> {
 
     // Get file path and read in file
     let file_path = &args[1];
+    // Creat file if doesn't exist
     if !path::Path::new(file_path).exists(){
         fs::File::create(file_path);
     }
@@ -45,12 +46,13 @@ fn main() -> Result<(), io::Error> {
     // Read file into vector
     let mut file_vector_str: Vec<&str> = file_string.lines().collect();
     file_vector_str.push("");
+    // Convert &str vector into String vector
     let mut file_vector = Vec::new();
     for i in 0..file_vector_str.len(){
         file_vector.push(file_vector_str[i].clone().to_string());
     }
-    let mut line_lengths: Vec<u16> = Vec::new();
     // Create new vector with line lengths
+    let mut line_lengths: Vec<u16> = Vec::new();
     for i in 0..file_vector.len(){
         line_lengths.push(file_vector[i as usize].len() as u16);
     }
@@ -125,34 +127,39 @@ fn main() -> Result<(), io::Error> {
                 code: KeyCode::End,
                 modifiers: KeyModifiers::NONE,
             ..}
+            // Backspace
             ) => span_changed = cursor_end(&mut terminal, &mut span_start, line_lengths.clone(), render_height.clone()),
             Event::Key(KeyEvent {
                 code: KeyCode::Backspace,
                 modifiers: KeyModifiers::NONE,
                 ..}
             ) => bool_toggle(&mut backspaced),
+            // Delete Key
             Event::Key(KeyEvent {
                 code: KeyCode::Delete,
                 modifiers: KeyModifiers::NONE,
                 ..}
             ) => bool_toggle(&mut deleted),
+            // Enter key
             Event::Key(KeyEvent {
                 code: KeyCode::Enter,
                 modifiers: KeyModifiers::NONE,
                 ..}
             ) => bool_toggle(&mut entered),
+            // If other random char, print it out
             Event::Key(KeyEvent{code: KeyCode::Char(event), ..}) => copy_char(&mut char_input, event, &mut char_changed),
             // if nothing, do nothing
             _ => (),
         }
         let x_pos = span_changed.0;
         let y_pos = span_changed.1;
-        // Re-set span vector && re-render
+        // If backspace was last key & not at beginning of line
         if backspaced && span_changed.0 > 1{
             file_vector[(y_pos as usize) + span_start - 1].remove(x_pos as usize - 2);
             line_lengths[(y_pos as usize) + span_start - 1] -= 1;
             span_changed.0 = span_changed.0 - 1;
         }
+        // If backspace was last key && at beginning of line
         else if backspaced && span_changed.0 == 1 && span_changed.1 > 1{
             span_changed.0 = line_lengths[y_pos as usize + span_start - 2] + 1;
             span_changed.1 -= 1;
@@ -161,16 +168,19 @@ fn main() -> Result<(), io::Error> {
             line_lengths.remove(y_pos as usize + span_start - 1);
             line_lengths[y_pos as usize + span_start - 2] = file_vector[y_pos as usize + span_start - 2].len() as u16;
         }
+        // If delete was last key & not at end of line
         if deleted && span_changed.0 < line_lengths[span_changed.1 as usize - 1]{
             file_vector[(y_pos as usize) + span_start - 1].remove(x_pos as usize - 1);
             line_lengths[(y_pos as usize) + span_start - 1] -= 1;
         }
+        // If delete was last key & at end of line
         else if deleted && span_changed.0 >= line_lengths[span_changed.1 as usize - 1] && span_changed.1 < line_lengths.len() as u16{
             file_vector[y_pos as usize + span_start - 1] = [file_vector[y_pos as usize + span_start - 1].clone(), file_vector[y_pos as usize + span_start].clone()].join("");
             file_vector.remove(y_pos as usize + span_start);
             line_lengths.remove(y_pos as usize + span_start);
             line_lengths[y_pos as usize + span_start - 1] = file_vector[y_pos as usize + span_start - 1].len() as u16;
         }
+        // If enter was last key
         if entered{
             file_vector.insert(y_pos as usize + span_start, "".to_owned());
             file_vector[y_pos as usize + span_start] = file_vector[y_pos as usize + span_start - 1][(x_pos as usize - 1)..].to_owned();
@@ -179,15 +189,19 @@ fn main() -> Result<(), io::Error> {
             span_changed.0 = 1;
             span_changed.1 = y_pos + 1;
         }
+        // If random char was last key
         if char_changed{
             file_vector[(y_pos as usize) + span_start - 1].insert((x_pos as usize - 1), char_input);
             line_lengths[(y_pos as usize) + span_start - 1] += 1;
             span_changed.0 = span_changed.0 + 1;
         }
+        // If was editied, say not saved
         if char_changed || backspaced || entered || deleted{
             has_saved = false;
         }
+        // Create span Vector
         let display_text = str_vec_to_span(file_vector.clone(), span_start.clone(), render_height.clone());
+        // Create file if opened one didn't exist
         if has_saved{
             file_path_span = Span::raw(String::from(file_path));
             save_file(file_vector.clone(), file_path);
@@ -195,11 +209,13 @@ fn main() -> Result<(), io::Error> {
         else{
             file_path_span = Span::raw(format!("{} *", file_path));
         }
+        // Re-render terminal
         render(&mut terminal, display_text.clone(), file_path_span.clone());
         let mut x_pos = span_changed.0;
         let mut y_pos = span_changed.1;
         terminal.set_cursor(x_pos, y_pos);
         terminal.show_cursor();
+        // Set variables to false
         char_changed = false;
         backspaced = false;
         entered = false;
@@ -217,11 +233,13 @@ fn main() -> Result<(), io::Error> {
 
     Ok(())
 }
+// Set bool to false (for match cases)
 fn bool_toggle(bool_input: &mut bool){
     if !*bool_input{
         *bool_input = !*bool_input;
     }
 }
+// Copy char to variable
 fn copy_char(char_input: &mut char, char_to_copy: char, char_changed: &mut bool){
     *char_input = char_to_copy;
     *char_changed = true;
@@ -334,6 +352,7 @@ fn render<B: tui::backend::Backend>(terminal: &mut Terminal<B>, display_text: Ve
     // return height of render
     return render_height;
 }
+// Write file out
 fn save_file(mut file_vector: Vec<String>, file_path: &str) -> std::io::Result<()>{
     let mut writer = fs::File::create(file_path)?;
     if file_vector[file_vector.len() - 1] == ""{
