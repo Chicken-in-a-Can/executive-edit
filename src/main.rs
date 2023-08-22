@@ -8,20 +8,19 @@
  * because I got annoyed at nano, and for fun
 */
 // Standard imports for various tasks
-use std::{io, io::Write, thread, time::Duration, process::exit, path, fs, env};
+use std::{io, io::Write, process::exit, path, fs, env};
 // Rust tui and crossterm imports for rendering
 use tui::{
     backend::CrosstermBackend,
-    widgets::{Widget, Block, Borders, Paragraph, Wrap},
-    style::{Style, Color},
-    layout::{Layout, Constraint, Direction, Alignment},
+    widgets::{Block, Borders, Paragraph, Wrap},
+    style::Style,
+    layout::Alignment,
     Terminal,
     text::{Span, Spans}
 };
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, KeyEvent, read},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers, KeyEvent, read},
     execute,
-    cursor,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 
@@ -39,7 +38,7 @@ fn main() -> Result<(), io::Error> {
     let file_path = &args[1];
     // Creat file if doesn't exist
     if !path::Path::new(file_path).exists(){
-        fs::File::create(file_path);
+        let _result = fs::File::create(file_path);
     }
     let mut file_path_span = Span::raw(String::from(file_path));
     let file_string = fs::read_to_string(file_path).expect("File not able to be read");
@@ -56,7 +55,7 @@ fn main() -> Result<(), io::Error> {
     for i in 0..file_vector.len(){
         line_lengths.push(file_vector[i as usize].len() as u16);
     }
-    let mut changes_vec: Vec<String> = Vec::new();
+    //let mut changes_vec: Vec<String> = Vec::new();
 
     // set up terminal
     enable_raw_mode()?;
@@ -73,8 +72,8 @@ fn main() -> Result<(), io::Error> {
 
     // Render terminal
     render_height = render(&mut terminal, display_text.clone(), file_path_span.clone());
-    terminal.set_cursor(1, 1);
-    terminal.show_cursor();
+    let _result = terminal.set_cursor(1, 1);
+    let _result = terminal.show_cursor();
     let mut char_input = ' ';
     let mut char_changed = false;
     let mut backspaced = false;
@@ -132,20 +131,26 @@ fn main() -> Result<(), io::Error> {
             Event::Key(KeyEvent {
                 code: KeyCode::Backspace,
                 modifiers: KeyModifiers::NONE,
-                ..}
+            ..}
             ) => bool_toggle(&mut backspaced),
             // Delete Key
             Event::Key(KeyEvent {
                 code: KeyCode::Delete,
                 modifiers: KeyModifiers::NONE,
-                ..}
+            ..}
             ) => bool_toggle(&mut deleted),
             // Enter key
             Event::Key(KeyEvent {
                 code: KeyCode::Enter,
                 modifiers: KeyModifiers::NONE,
-                ..}
+            ..}
             ) => bool_toggle(&mut entered),
+            // Tab key
+            Event::Key(KeyEvent{
+                code: KeyCode::Tab,
+                modifiers: KeyModifiers::NONE,
+            ..}
+            ) => copy_char(&mut char_input, '\t', &mut char_changed),
             // If other random char, print it out
             Event::Key(KeyEvent{code: KeyCode::Char(event), ..}) => copy_char(&mut char_input, event, &mut char_changed),
             // if nothing, do nothing
@@ -191,7 +196,7 @@ fn main() -> Result<(), io::Error> {
         }
         // If random char was last key
         if char_changed{
-            file_vector[(y_pos as usize) + span_start - 1].insert((x_pos as usize - 1), char_input);
+            file_vector[(y_pos as usize) + span_start - 1].insert(x_pos as usize - 1, char_input);
             line_lengths[(y_pos as usize) + span_start - 1] += 1;
             span_changed.0 = span_changed.0 + 1;
         }
@@ -204,17 +209,17 @@ fn main() -> Result<(), io::Error> {
         // Create file if opened one didn't exist
         if has_saved{
             file_path_span = Span::raw(String::from(file_path));
-            save_file(file_vector.clone(), file_path);
+            let _result = save_file(file_vector.clone(), file_path);
         }
         else{
             file_path_span = Span::raw(format!("{} *", file_path));
         }
         // Re-render terminal
         render(&mut terminal, display_text.clone(), file_path_span.clone());
-        let mut x_pos = span_changed.0;
-        let mut y_pos = span_changed.1;
-        terminal.set_cursor(x_pos, y_pos);
-        terminal.show_cursor();
+        let x_pos = span_changed.0;
+        let y_pos = span_changed.1;
+        let _result = terminal.set_cursor(x_pos, y_pos);
+        let _result = terminal.show_cursor();
         // Set variables to false
         char_changed = false;
         backspaced = false;
@@ -252,7 +257,7 @@ fn cursor_home(span_start: &mut usize) -> (u16, u16){
 // Sets cursor to bottom of file, with some blank line padding
 fn cursor_end<B: tui::backend::Backend>(terminal: &mut Terminal<B>, span_start: &mut usize, line_lengths: Vec<u16>, render_height: usize) -> (u16, u16){
     let x_pos = terminal.get_cursor().unwrap().0;
-    let y_pos = terminal.get_cursor().unwrap().1;
+    let _y_pos = terminal.get_cursor().unwrap().1;
     if line_lengths.len() > render_height{
         *span_start = line_lengths.len() - render_height;
         return(1, (render_height) as u16);
@@ -304,7 +309,7 @@ fn cursor_move<B: tui::backend::Backend>(terminal: &mut Terminal<B>, line_length
         x_pos = line_lengths[(y_pos - 1) as usize + *span_start] + 1;
     }
     // Set cursor and return
-    terminal.set_cursor(x_pos, y_pos);
+    let _result = terminal.set_cursor(x_pos, y_pos);
     return (x_pos, y_pos);
 }
 // Converts &str vector to span vector
@@ -328,7 +333,7 @@ fn str_vec_to_span(file_vector: Vec<String>, start_y: usize, render_height: usiz
 // Renders the terminal
 fn render<B: tui::backend::Backend>(terminal: &mut Terminal<B>, display_text: Vec<Spans<'_>>, file_path_span: Span) -> usize{
     let mut render_height: usize = 0;
-    terminal.draw(|main| {
+    let _result = terminal.draw(|main| {
         let mut size = main.size();
         // Configure border
         let block = Block::default()
