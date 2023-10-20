@@ -48,7 +48,7 @@ fn main() -> Result<(), io::Error> {
     // Convert &str vector into String vector
     let mut file_vector = Vec::new();
     for i in 0..file_vector_str.len(){
-        file_vector.push(file_vector_str[i].clone().to_string());
+        file_vector.push(file_vector_str[i].to_string());
     }
     // Create new vector with line lengths
     let mut line_lengths: Vec<u16> = Vec::new();
